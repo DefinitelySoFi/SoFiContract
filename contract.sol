@@ -66,6 +66,7 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
     }
 
     function buyKeys(address keysSubject, uint256 amount) public payable nonReentrant  {
+        require(amount > 0, "DefinitelyKeysV1: buyKeys: 0 amount");
         uint256 supply = keysSupply[keysSubject];
         uint256 totalCost = getTotalCostForRange(supply, amount);
         keysSupply[keysSubject] = supply + amount;
@@ -89,6 +90,7 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
     }
 
     function sellKeys(address keysSubject, uint256 amount, uint256 minEthReturn) public nonReentrant {
+        require(amount > 0, "DefinitelyKeysV1: sellKeys: 0 amount");
         uint256 supply = keysSupply[keysSubject];
         require(supply - amount >= 100, "DefinitelyKeysV1: sellKeys: last 100 unit cannot be sold");
         require(keysBalance[keysSubject][msg.sender] >= amount, "DefinitelyKeysV1: sellKeys: insufficient keys");
