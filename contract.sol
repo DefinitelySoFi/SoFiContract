@@ -10,15 +10,18 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
         bytes32 initialInviteCode = keccak256(abi.encodePacked("DEFINITELY"));
         referralOwners[initialInviteCode] = msg.sender;
         protocolFeeDestination = msg.sender;
-        protocolFeePercent = 50000000000000000;
-        subjectFeePercent = 50000000000000000;
-        referralFeePercent = 10000000000000000;
+        protocolFeePercent =  0.05 ether;
+        subjectFeePercent =  0.05 ether;
+        referralFeePercent =  0.01 ether;
+        subjectCreationFee = 0.001 ether;
     }
 
     address public protocolFeeDestination;
     uint256 public protocolFeePercent;
     uint256 public subjectFeePercent;
     uint256 public referralFeePercent;
+    uint256 public subjectCreationFee;
+    bool public transferEnabled = false;
 
     event Trade(address trader, address subject, bool isBuy, uint256 keyAmount, uint256 ethAmount, uint256 balance, uint256 supply);
     event Transfer(address from, address to, uint256 amount, address subject);
@@ -44,17 +47,30 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
         referralFeePercent = _feePercent;
     }
 
+    function setSubjectCreationFeet(uint256 _fee) public onlyOwner {
+        subjectCreationFee = _fee;
+    }
+
+    function setTransferEnabled() public onlyOwner {
+        transferEnabled = true;
+    }
+
     function createSubject(bytes32 inviteCode, bytes32 myInviteCode) public payable nonReentrant {
-        require(msg.value >= 0.001 ether, "DefinitelyKeysV1: createSubject: insufficient funds");
+        require(msg.value >= subjectCreationFee, "DefinitelyKeysV1: createSubject: insufficient funds");
         require(keysSupply[msg.sender] == 0, "DefinitelyKeysV1: createSubject: keysSubject already exists");
-        keysSupply[msg.sender] = 100;
-        keysBalance[msg.sender][msg.sender] = 100;
-        emit Trade(msg.sender, referralOwners[inviteCode], true, 100, 0, 100, 100);
-        (bool success, ) = protocolFeeDestination.call{value: 0.001 ether}(""); //account opening fee
         require(referralOwners[myInviteCode] == address(0), "DefinitelyKeysV1: createSubject: invite code already set");
         referralOwners[myInviteCode] = msg.sender;
         require(referralOwners[inviteCode] != address(0), "DefinitelyKeysV1: createSubject: invalid invite code");
         subjectReferralTargets[msg.sender] = inviteCode;
+        keysSupply[msg.sender] = 100;
+        keysBalance[msg.sender][msg.sender] = 100;
+         if(msg.value > subjectCreationFee) {
+            uint256 refundAmount = msg.value - subjectCreationFee;
+            (bool refundSuccess,) = msg.sender.call{value: refundAmount}("");
+            require(refundSuccess, "DefinitelyKeysV1: createSubject: Refund failed");
+        }
+        emit Trade(msg.sender, referralOwners[inviteCode], true, 100, 0, 100, 100);
+        (bool success, ) = protocolFeeDestination.call{value: subjectCreationFee}(""); //account opening fee
         require(success, "DefinitelyKeysV1: createSubject: account creation failed");
     }
 
@@ -68,9 +84,10 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
     function buyKeys(address keysSubject, uint256 amount) public payable nonReentrant  {
         require(amount > 0, "DefinitelyKeysV1: buyKeys: 0 amount");
         uint256 supply = keysSupply[keysSubject];
-        uint256 totalCost = getTotalCostForRange(supply, amount);
+        require(supply > 100, "DefinitelyKeysV1: subject not found");
         keysSupply[keysSubject] = supply + amount;
         keysBalance[keysSubject][msg.sender] += amount;
+        uint256 totalCost = getTotalCostForRange(supply, amount);
         uint256 protocolFee = totalCost * protocolFeePercent / 1 ether;
         uint256 subjectFee = totalCost * subjectFeePercent / 1 ether;
         uint256 referralFee = totalCost * referralFeePercent / 1 ether;
@@ -86,7 +103,11 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
         (bool success1, ) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success2, ) = keysSubject.call{value: subjectFee}("");
         (bool success3, ) = referralOwner.call{value: referralFee}("");
-        require(success1 && success2 && success3, "DefinitelyKeysV1: buyKeys: transfer failed");
+        require(success1 && success2, "DefinitelyKeysV1: buyKeys: transfer failed");
+        if (!success3){
+            (bool success4, ) = protocolFeeDestination.call{value: referralFee}("");
+            require(success4, "DefinitelyKeysV1: buyKeys: transfer failed");
+        }
     }
 
     function sellKeys(address keysSubject, uint256 amount, uint256 minEthReturn) public nonReentrant {
@@ -94,9 +115,9 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
         uint256 supply = keysSupply[keysSubject];
         require(supply - amount >= 100, "DefinitelyKeysV1: sellKeys: last 100 unit cannot be sold");
         require(keysBalance[keysSubject][msg.sender] >= amount, "DefinitelyKeysV1: sellKeys: insufficient keys");
-        uint256 totalCost =  getTotalCostForRange(supply - amount, amount);
         keysSupply[keysSubject] = supply - amount;
         keysBalance[keysSubject][msg.sender] -= amount;
+        uint256 totalCost =  getTotalCostForRange(supply - amount, amount);
         uint256 protocolFee = totalCost * protocolFeePercent / 1 ether;
         uint256 subjectFee = totalCost * subjectFeePercent / 1 ether;
         uint256 referralFee = totalCost * referralFeePercent / 1 ether;
@@ -107,10 +128,15 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
         (bool success2,) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success3,) = keysSubject.call{value: subjectFee}("");
         (bool success4,) = referralOwner.call{value: referralFee}("");
-        require(success1 && success2 && success3 && success4, "DefinitelyKeysV1: sellKeys: transfer failed");
+        require(success1 && success2 && success3, "DefinitelyKeysV1: sellKeys: transfer failed");
+        if (!success4){
+            (bool success5, ) = protocolFeeDestination.call{value: referralFee}("");
+            require(success5, "DefinitelyKeysV1: buyKeys: transfer failed");
+        }
     }
 
     function transferKeys(address keysSubject, address to, uint256 amount) public nonReentrant {
+        require(transferEnabled, "DefinitelyKeysV1: transferKeys: transfer is not enabled yet");
         require(keysBalance[keysSubject][msg.sender] >= amount, "DefinitelyKeysV1: transferKeys: insufficient balance");
         require(to != address(0), "DefinitelyKeysV1: transferKeys: transfer to the zero address");
         keysBalance[keysSubject][msg.sender] -= amount;
