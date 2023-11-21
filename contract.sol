@@ -13,7 +13,7 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
         protocolFeePercent =  0.05 ether;
         subjectFeePercent =  0.05 ether;
         referralFeePercent =  0.01 ether;
-        subjectCreationFee = 0.001 ether;
+        subjectCreationFee = 0.002 ether;
     }
 
     address public protocolFeeDestination;
@@ -84,7 +84,7 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
     function buyKeys(address keysSubject, uint256 amount) public payable nonReentrant  {
         require(amount > 0, "DefinitelyKeysV1: buyKeys: 0 amount");
         uint256 supply = keysSupply[keysSubject];
-        require(supply > 100, "DefinitelyKeysV1: subject not found");
+        require(supply >= 100, "DefinitelyKeysV1: subject not found");
         keysSupply[keysSubject] = supply + amount;
         keysBalance[keysSubject][msg.sender] += amount;
         uint256 totalCost = getTotalCostForRange(supply, amount);
