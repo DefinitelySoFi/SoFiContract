@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
 
@@ -13,7 +13,7 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
         protocolFeePercent =  0.05 ether;
         subjectFeePercent =  0.05 ether;
         referralFeePercent =  0.01 ether;
-        subjectCreationFee = 0.002 ether;
+        subjectCreationFee = 9.8 ether;
     }
 
     address public protocolFeeDestination;
@@ -78,7 +78,7 @@ contract DefinitelyKeysV1 is Ownable, ReentrancyGuard  {
         uint256 sum1 = (supply - 1 )* (supply) * (2 * (supply - 1) + 1) / 6;
         uint256 sum2 = (supply - 1 + amount) * (supply + amount) * (2 * (supply - 1 + amount) + 1) / 6;
         uint256 summation = sum2 - sum1;
-        return summation * 1 ether / 16000000000;
+        return summation * 1 ether / 5000000;
     }
 
     function buyKeys(address keysSubject, uint256 amount) public payable nonReentrant  {
